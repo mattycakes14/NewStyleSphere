@@ -1,6 +1,6 @@
 import { View, Text} from "react-native";
 import react from 'react';
-import Login from "./Login";
+import Login from "../components/Login";
 
 export default function app() {
     return (
