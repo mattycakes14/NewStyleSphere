@@ -1,11 +1,12 @@
-import { View, Text} from "react-native";
-import react from 'react';
+import { View } from "react-native";
+import SwipeDeck from './SwipeDeck'; // Import SwipeDeck
 import Login from "@/components/Login";
 
-export default function app() {
-    return (
-      <View>
-        <Login></Login>
-      </View>
-    );
-  }
+export default function App() {
+  return (
+    <View style={{ flex: 1 }}>
+      <Login />
+      <SwipeDeck />
+    </View>
+  );
+}

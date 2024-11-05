@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, ScrollView, Alert } from 'react-native';
 import { getFirestore, setDoc, doc, getDoc } from 'firebase/firestore';
-import { getAuth } from '@firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from 'expo-router';
 
 const ProfileInput = () => {
+  const navigation = useNavigation();
   const [name, setName] = useState('');
   const [weight, setWeight] = useState('');
   const [location, setLocation] = useState('');
   const [instagram, setInstagram] = useState('');
   const [price, setPrice] = useState('');
-  const [imageUri, setImageUri] = useState(null);
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const auth = getAuth();
 
+  // Fetch user data from Firestore
   useEffect(() => {
     const fetchData = async () => {
       const user = auth.currentUser;
@@ -30,7 +32,7 @@ const ProfileInput = () => {
           setLocation(userData.location || '');
           setInstagram(userData.instagram || '');
           setPrice(userData.price || '');
-          setImageUrl(userData.imageUrl || '');
+          setImageUri(userData.imageUrl || null); // Change from setImageUrl to setImageUri for consistency
         } else {
           console.log('No such document!');
         }
@@ -59,41 +61,58 @@ const ProfileInput = () => {
       quality: 1,
     });
 
-    if (!result.canceled) {
-      setImageUri(result.uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setImageUri(result.assets[0].uri); // Set the image URI from the first asset
     }
   };
 
-  const handleUpload = async () => {
-    if (!imageUri) return;
-
+  const handleUpload = async (): Promise<string | null> => {
     const user = auth.currentUser;
+    if (!user || !imageUri) return null;
+
     const storage = getStorage();
     const storageRef = ref(storage, `barberImages/${user.uid}.jpg`);
 
-    const imgBlob = await fetch(imageUri).then((res) => res.blob());
-    await uploadBytes(storageRef, imgBlob);
-    const downloadUrl = await getDownloadURL(storageRef);
-    setImageUrl(downloadUrl);
-
-    console.log('Image uploaded successfully!');
+    try {
+      const imgBlob = await fetch(imageUri).then((res) => res.blob());
+      await uploadBytes(storageRef, imgBlob);
+      console.log('Image uploaded successfully!');
+      return await getDownloadURL(storageRef); // Return the URL of the uploaded image
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      alert(`Error uploading image: ${error.message}`);
+      return null;
+    }
   };
 
   const handleSubmit = async () => {
-    const db = getFirestore();
     const user = auth.currentUser;
+    if (!user) {
+      alert('User is not logged in!');
+      return;
+    }
+
+    const db = getFirestore();
+
     try {
+      // Upload the image and get the URL
+      const uploadedImageUrl = await handleUpload();
+
+      // Store user data with the obtained image URL if available
       await setDoc(doc(db, 'barbers', user.uid), {
         name,
         weight,
         location,
         instagram,
         price,
-        imageUrl,
+        imageUrl: uploadedImageUrl || '', // Use the image URL obtained from upload, default to empty string if null
       });
+
       console.log('User data stored successfully!');
-    } catch (error) {
+      navigation.navigate('SwipeDeck'); // Redirect to SwipeDeck after submission
+    } catch (error: any) {
       console.error('Error saving user data:', error);
+      alert(`Error saving user data: ${error.message}`);
     }
   };
 
@@ -107,7 +126,6 @@ const ProfileInput = () => {
       <TextInput style={styles.input} placeholder="Price" value={price} onChangeText={setPrice} keyboardType="numeric" />
       <Button title="Pick an Image" onPress={handleImagePick} />
       {imageUri && <Image source={{ uri: imageUri }} style={styles.imagePreview} />}
-      <Button title="Upload Image" onPress={handleUpload} />
       <Button title="Submit" onPress={handleSubmit} />
     </ScrollView>
   );
@@ -117,25 +135,24 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   title: {
     fontSize: 24,
+    fontWeight: 'bold',
     marginBottom: 20,
   },
   input: {
-    width: '90%', // Use a percentage to adapt to screen width
-    height: 40,
-    borderColor: '#ddd',
     borderWidth: 1,
-    marginBottom: 16,
-    padding: 8,
-    borderRadius: 4,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10,
   },
   imagePreview: {
     width: 100,
     height: 100,
+    borderRadius: 50,
     marginVertical: 10,
   },
 });
